@@ -8,7 +8,7 @@
  * The output is toggled as often as possible to determine the maximum
  * rate at which interrupts can be handled.
  */
-var Gpio = require('../onoff').Gpio,
+var Gpio = require('../index').Gpio,
   input = new Gpio(7, 'in', 'both'),
   output = new Gpio(8, 'out'),
   irqCount = 0,

@@ -1,6 +1,6 @@
 "use strict";
 
-var Gpio = require('../onoff').Gpio, // Constructor function for Gpio objects.
+var Gpio = require('../index').Gpio, // Constructor function for Gpio objects.
   led = new Gpio(17, 'out');         // Export GPIO #17 as an output.
 
 // Toggle the state of the LED on GPIO #17 every 200ms 'count' times.

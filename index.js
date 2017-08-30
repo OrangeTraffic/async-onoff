@@ -1,7 +1,8 @@
 "use strict";
 
-var fs = require('fs'),
-  Epoll = require('epoll').Epoll;
+const fs = require('fs');
+const Epoll = require('epoll').Epoll;
+const waitForExportToComplete = require('./waitForExportToComplete');
 
 var GPIO_ROOT_PATH = '/sys/class/gpio/',
   ZERO = new Buffer('0'),
@@ -10,8 +11,8 @@ var GPIO_ROOT_PATH = '/sys/class/gpio/',
 exports.version = '1.1.7';
 
 function pollerEventHandler(err, fd, events) {
-  var value = this.readSync(),
-    callbacks = this.listeners.slice(0);
+  const value = this.readSync();
+  const callbacks = this.listeners.slice(0);
 
   if (this.opts.debounceTimeout > 0) {
     setTimeout(function () {
@@ -23,7 +24,7 @@ function pollerEventHandler(err, fd, events) {
     }.bind(this), this.opts.debounceTimeout);
   }
 
-  callbacks.forEach(function (callback) {
+  callbacks.forEach((callback) => {
     callback(err, value);
   });
 }
@@ -58,103 +59,69 @@ function pollerEventHandler(err, fd, events) {
  *                          // activeLow are true and false. Setting activeLow
  *                          // to true inverts. The default value is false.
  */
-function Gpio(gpio, direction, edge, options) {
-  var permissionRequiredPaths;
+function Gpio(gpio, direction, edge, _options = {}) {
 
   if (!(this instanceof Gpio)) {
-    return new Gpio(gpio, direction, edge, options);
+    return new Gpio(gpio, direction, edge, _options);
   }
 
-  if (typeof edge === 'object' && !options) {
+  let options = _options;
+  this.requestedEdge = edge;
+
+  if (typeof edge === 'object' && _options === undefined) {
+    // Parameter's shift -> 3 options signature, (gpio, direction, options)
     options = edge;
-    edge = undefined;
+    this.requestedEdge = undefined;
   }
-
-  options = options || {};
 
   this.gpio = gpio;
+  this.requestedDirection = direction;
+  this.requestedOptions = options;
   this.gpioPath = GPIO_ROOT_PATH + 'gpio' + this.gpio + '/';
   this.opts = {};
   this.opts.debounceTimeout = options.debounceTimeout || 0;
   this.readBuffer = new Buffer(16);
   this.listeners = [];
+  this.initCompleted = false;
+  this.initCalled = false;
 
   if (!fs.existsSync(this.gpioPath)) {
     // The pin hasn't been exported yet so export it.
     fs.writeFileSync(GPIO_ROOT_PATH + 'export', this.gpio);
-
-    // A hack to avoid the issue described here:
-    // https://github.com/raspberrypi/linux/issues/553
-    // I don't like this solution, but it enables compatibility with older
-    // versions of onoff, i.e., the Gpio constructor was and still is
-    // synchronous.
-    permissionRequiredPaths = [
-     this.gpioPath + 'direction',
-     this.gpioPath + 'active_low',
-     this.gpioPath + 'value',
-    ];
-
-    if (edge) {
-      permissionRequiredPaths.push(this.gpioPath + 'edge');
-    }
-
-    permissionRequiredPaths.forEach(function (path) {
-      var tries = 0,
-        fd;
-
-      while (true) {
-        try {
-          tries += 1;
-          fd = fs.openSync(path, 'r+');
-          fs.closeSync(fd);
-          break;
-        } catch (e) {
-          if (tries === 10000) {
-            throw e;
-          }
-        }
-      }
-    });
-
-    fs.writeFileSync(this.gpioPath + 'direction', direction);
-
-    if (edge) {
-      fs.writeFileSync(this.gpioPath + 'edge', edge);
-    }
-
-    if (!!options.activeLow) {
-      fs.writeFileSync(this.gpioPath + 'active_low', ONE);
-    }
-  } else {
-    // The pin has already been exported, perhaps by onoff itself, perhaps
-    // by quick2wire gpio-admin on the Pi, perhaps by the WiringPi gpio
-    // utility on the Pi, or perhaps by something else. In any case, an
-    // attempt is made to set the direction and edge to the requested
-    // values here. If quick2wire gpio-admin was used for the export, the
-    // user should have access to both direction and edge files. This is
-    // important as gpio-admin sets niether direction nor edge. If the
-    // WiringPi gpio utility was used, the user should have access to edge
-    // file, but not the direction file. This is also ok as the WiringPi
-    // gpio utility can set both direction and edge. If there are any
-    // errors while attempting to perform the modifications, just keep on
-    // truckin'.
-    try {
-      fs.writeFileSync(this.gpioPath + 'direction', direction);
-    } catch (ignore) {
-    }
-    try {
-      if (edge) {
-        fs.writeFileSync(this.gpioPath + 'edge', edge);
-      }
-      try {
-        fs.writeFileSync(this.gpioPath + 'active_low',
-          !!options.activeLow ? ONE : ZERO
-        );
-      } catch (ignore) {
-      }
-    } catch (ignore) {
-    }
   }
+}
+
+exports.Gpio = Gpio;
+
+Gpio.prototype.init = async function init() {
+  if (this.initCompleted || this.initCalled) return;
+  this.initCalled = true;
+
+  await waitForExportToComplete(this.gpioPath, this.requestedEdge);
+
+  // The pin has already been exported, perhaps by onoff itself, perhaps
+  // by quick2wire gpio-admin on the Pi, perhaps by the WiringPi gpio
+  // utility on the Pi, or perhaps by something else. In any case, an
+  // attempt is made to set the direction and edge to the requested
+  // values here. If quick2wire gpio-admin was used for the export, the
+  // user should have access to both direction and edge files. This is
+  // important as gpio-admin sets niether direction nor edge. If the
+  // WiringPi gpio utility was used, the user should have access to edge
+  // file, but not the direction file. This is also ok as the WiringPi
+  // gpio utility can set both direction and edge. If there are any
+  // errors while attempting to perform the modifications, just keep on
+  // truckin'.
+  try {
+    fs.writeFileSync(this.gpioPath + 'direction', this.requestedDirection);
+  } catch (ignore) { }
+  if (this.requestedEdge) {
+    try {
+      fs.writeFileSync(this.gpioPath + 'edge', this.requestedEdge);
+    } catch (ignore) { }
+  }
+  try {
+    fs.writeFileSync(this.gpioPath + 'active_low', !!this.requestedOptions.activeLow ? ONE : ZERO);
+  } catch (ignore) { }
 
   // Cache fd for performance.
   this.valueFd = fs.openSync(this.gpioPath + 'value', 'r+');
@@ -163,15 +130,15 @@ function Gpio(gpio, direction, edge, options) {
   this.readSync();
 
   this.poller = new Epoll(pollerEventHandler.bind(this));
-}
-exports.Gpio = Gpio;
+  this.initCompleted = true;
+};
 
 /**
  * Read GPIO value asynchronously.
  *
  * [callback: (err: error, value: number) => {}] // Optional callback
  */
-Gpio.prototype.read = function (callback) {
+Gpio.prototype.read = function read(callback) {
   fs.read(this.valueFd, this.readBuffer, 0, 1, 0, function (err, bytes, buf) {
     if (typeof callback === 'function') {
       if (err) {
@@ -318,8 +285,7 @@ Gpio.prototype.setEdge = function (edge) {
  * Returns - boolean
  */
 Gpio.prototype.activeLow = function () {
-  return fs.readFileSync(
-    this.gpioPath + 'active_low')[0] === ONE[0] ? true : false;
+  return fs.readFileSync(this.gpioPath + 'active_low')[0] === ONE[0];
 };
 
 /**

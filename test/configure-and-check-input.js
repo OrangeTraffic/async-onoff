@@ -1,6 +1,6 @@
 "use strict";
 
-var Gpio = require('../onoff').Gpio,
+var Gpio = require('../index').Gpio,
   assert = require('assert'),
   input = new Gpio(4, 'in', 'rising');
 

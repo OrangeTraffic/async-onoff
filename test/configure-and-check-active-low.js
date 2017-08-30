@@ -4,7 +4,7 @@
  * In this test, GPIO #7 is wired to one end of a 1kΩ current limiting
  * resistor and GPIO #8 is wired to the other end of the resistor.
  */
-var Gpio = require('../onoff').Gpio,
+var Gpio = require('../index').Gpio,
   assert = require('assert'),
   input = new Gpio(7, 'in'),
   output = new Gpio(8, 'out', {activeLow: true});

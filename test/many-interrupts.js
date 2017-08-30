@@ -1,7 +1,7 @@
 "use strict";
 
 var assert = require('assert'),
-  Gpio = require('../onoff').Gpio,
+  Gpio = require('../index').Gpio,
   input = new Gpio(7, 'in', 'both'),
   output = new Gpio(8, 'out'),
   toggleCount = 0,

@@ -1,6 +1,6 @@
 "use strict";
 
-var Gpio = require('../onoff').Gpio,
+var Gpio = require('../index').Gpio,
   led,
   i;
 

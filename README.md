@@ -1,4 +1,10 @@
-# onoff 
+
+# WARNING
+
+
+This documentation has **NOT** been updated!  This is still original synchronous **onoff** documentation.
+
+# async-onoff
 
 GPIO access and interrupt detection with **Node.js** on Linux boards like the
 Raspberry Pi, C.H.I.P. or BeagleBone.
