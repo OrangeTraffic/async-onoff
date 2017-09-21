@@ -99,18 +99,6 @@ Gpio.prototype.init = async function init() {
 
   await waitForExportToComplete(this.gpioPath, this.requestedEdge);
 
-  // The pin has already been exported, perhaps by onoff itself, perhaps
-  // by quick2wire gpio-admin on the Pi, perhaps by the WiringPi gpio
-  // utility on the Pi, or perhaps by something else. In any case, an
-  // attempt is made to set the direction and edge to the requested
-  // values here. If quick2wire gpio-admin was used for the export, the
-  // user should have access to both direction and edge files. This is
-  // important as gpio-admin sets niether direction nor edge. If the
-  // WiringPi gpio utility was used, the user should have access to edge
-  // file, but not the direction file. This is also ok as the WiringPi
-  // gpio utility can set both direction and edge. If there are any
-  // errors while attempting to perform the modifications, just keep on
-  // truckin'.
   try {
     fs.writeFileSync(this.gpioPath + 'direction', this.requestedDirection);
   } catch (ignore) { }
